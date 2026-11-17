@@ -12,6 +12,7 @@
   "dependencies": {
     "@whiskeysockets/baileys": "latest",
     "pdf-lib": "^1.17.1",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "sharp": "^0.33.5"
   }
 }
