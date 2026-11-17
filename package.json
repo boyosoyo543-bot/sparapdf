@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-image-pdf-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "pdf-lib": "^1.17.1",
+    "pino": "^9.6.0"
+  }
+}
