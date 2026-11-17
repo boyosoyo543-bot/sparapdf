@@ -39,14 +39,17 @@ function loadSessions() {
   try {
     if (!fs.existsSync(SESSIONS_FILE)) return
 
-    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'))
+    const saved = JSON.parse(
+      fs.readFileSync(SESSIONS_FILE, 'utf8')
+    )
 
     for (const [chatId, items] of Object.entries(saved)) {
       if (Array.isArray(items)) {
         sessions.set(
           chatId,
           items.filter(item =>
-            item?.filePath && fs.existsSync(item.filePath)
+            item?.filePath &&
+            fs.existsSync(item.filePath)
           )
         )
       }
@@ -59,11 +62,17 @@ function loadSessions() {
 }
 
 async function saveSessions() {
-  await fs.promises.mkdir(DATA_DIR, { recursive: true })
+  await fs.promises.mkdir(DATA_DIR, {
+    recursive: true
+  })
 
   await fs.promises.writeFile(
     SESSIONS_FILE,
-    JSON.stringify(Object.fromEntries(sessions), null, 2),
+    JSON.stringify(
+      Object.fromEntries(sessions),
+      null,
+      2
+    ),
     'utf8'
   )
 }
@@ -77,57 +86,28 @@ function getText(message) {
   ).trim()
 }
 
-function getContextInfo(message) {
-  return (
-    message?.extendedTextMessage?.contextInfo ||
-    message?.imageMessage?.contextInfo ||
-    message?.documentMessage?.contextInfo
-  )
-}
-
-function normalizeId(value) {
-  return String(value || '')
-    .split(':')[0]
-    .split('@')[0]
-}
-
-function isAllowedMessage(message, sock) {
-  const chatId = message.key.remoteJid || ''
-
-  // الخاص مسموح فيه مباشرة
-  if (!chatId.endsWith('@g.us')) return true
-
-  const contextInfo = getContextInfo(message.message)
-
-  const myIds = [sock.user?.id, sock.user?.lid]
-    .filter(Boolean)
-    .map(normalizeId)
-
-  const mentioned = (contextInfo?.mentionedJid || [])
-    .some(jid => myIds.includes(normalizeId(jid)))
-
-  const repliedToBot = myIds.includes(
-    normalizeId(contextInfo?.participant)
-  )
-
-  // فـGroup خاص mention أو reply على البوت
-  return mentioned || repliedToBot
-}
-
 function detectImageType(buffer, mimetype = '') {
-  const mime = mimetype.split(';')[0].toLowerCase()
+  const mime = mimetype
+    .split(';')[0]
+    .toLowerCase()
 
   const isPng =
     mime === 'image/png' ||
     buffer.subarray(0, 8).equals(
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+      Buffer.from([
+        137, 80, 78, 71,
+        13, 10, 26, 10
+      ])
     )
 
   if (isPng) return 'png'
 
   const isJpg =
     mime === 'image/jpeg' ||
-    (buffer[0] === 0xff && buffer[1] === 0xd8)
+    (
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8
+    )
 
   if (isJpg) return 'jpg'
 
@@ -143,11 +123,17 @@ function getPageSize() {
     return [595.28, 841.89]
   }
 
-  // إذا استعملت ORIGINAL، كل صفحة غادي تكون بحجم الصورة
+  // استعمل PDF_PAGE_SIZE=ORIGINAL
+  // باش كل صفحة تكون بحجم الصورة الأصلية
   return null
 }
 
-function fitInside(width, height, maxWidth, maxHeight) {
+function fitInside(
+  width,
+  height,
+  maxWidth,
+  maxHeight
+) {
   const scale = Math.min(
     maxWidth / width,
     maxHeight / height
@@ -160,18 +146,20 @@ function fitInside(width, height, maxWidth, maxHeight) {
 }
 
 async function addImageToPdf(pdfDoc, item) {
-  const buffer = await fs.promises.readFile(item.filePath)
+  const buffer = await fs.promises.readFile(
+    item.filePath
+  )
 
   const type =
     item.type ||
     detectImageType(buffer, item.mimetype)
 
   if (!type) {
-    throw new Error('Only JPEG and PNG images are supported')
+    throw new Error(
+      'Only JPEG and PNG images are supported'
+    )
   }
 
-  // JPEG كيدخل مباشرة بلا إعادة ضغط
-  // PNG كيدخل بطريقة lossless
   const image = type === 'png'
     ? await pdfDoc.embedPng(buffer)
     : await pdfDoc.embedJpg(buffer)
@@ -179,7 +167,7 @@ async function addImageToPdf(pdfDoc, item) {
   const dimensions = image.scale(1)
   const fixedPage = getPageSize()
 
-  // ORIGINAL: حجم الصفحة كيكون هو حجم الصورة
+  // إذا كانت الصفحة ORIGINAL
   if (!fixedPage) {
     const page = pdfDoc.addPage([
       dimensions.width,
@@ -222,14 +210,17 @@ async function addImageToPdf(pdfDoc, item) {
 async function createPdf(chatId) {
   const items = sessions.get(chatId) || []
 
-  if (!items.length) return null
+  if (!items.length) {
+    return null
+  }
 
   const pdfDoc = await PDFDocument.create()
 
   pdfDoc.setTitle('WhatsApp Images')
-  pdfDoc.setProducer('WhatsApp Image to PDF Bot')
+  pdfDoc.setProducer(
+    'WhatsApp Image to PDF Bot'
+  )
 
-  // الصور كتدخل بنفس ترتيب الإرسال
   for (const item of items) {
     await addImageToPdf(pdfDoc, item)
   }
@@ -243,7 +234,10 @@ async function createPdf(chatId) {
     `images-${safeId(chatId)}-${Date.now()}.pdf`
   )
 
-  await fs.promises.writeFile(outputPath, bytes)
+  await fs.promises.writeFile(
+    outputPath,
+    bytes
+  )
 
   return {
     outputPath,
@@ -256,7 +250,9 @@ async function clearSession(chatId) {
 
   for (const item of items) {
     try {
-      await fs.promises.unlink(item.filePath)
+      await fs.promises.unlink(
+        item.filePath
+      )
     } catch {}
   }
 
@@ -264,14 +260,24 @@ async function clearSession(chatId) {
   await saveSessions()
 }
 
-async function addImage(chatId, message) {
-  const image = message.message.imageMessage
+async function addImage(
+  chatId,
+  message,
+  sock
+) {
+  const image =
+    message.message.imageMessage
 
   const buffer = await downloadMediaMessage(
     message,
     'buffer',
     {},
-    { logger }
+    {
+      logger,
+
+      // إعادة طلب رابط الصورة إذا كان منتهي
+      reuploadRequest: sock.updateMediaMessage
+    }
   )
 
   const type = detectImageType(
@@ -285,7 +291,8 @@ async function addImage(chatId, message) {
     )
   }
 
-  const existing = sessions.get(chatId) || []
+  const existing =
+    sessions.get(chatId) || []
 
   if (existing.length >= MAX_IMAGES) {
     throw new Error(
@@ -294,7 +301,9 @@ async function addImage(chatId, message) {
   }
 
   const filename =
-    `${safeId(chatId)}-${Date.now()}-${existing.length + 1}.` +
+    `${safeId(chatId)}-` +
+    `${Date.now()}-` +
+    `${existing.length + 1}.` +
     `${type === 'jpg' ? 'jpg' : 'png'}`
 
   const filePath = path.join(
@@ -302,16 +311,22 @@ async function addImage(chatId, message) {
     filename
   )
 
-  await fs.promises.writeFile(filePath, buffer)
+  await fs.promises.writeFile(
+    filePath,
+    buffer
+  )
 
   existing.push({
     filePath,
     type,
-    mimetype: image.mimetype || `image/${type}`,
-    createdAt: new Date().toISOString()
+    mimetype:
+      image.mimetype || `image/${type}`,
+    createdAt:
+      new Date().toISOString()
   })
 
   sessions.set(chatId, existing)
+
   await saveSessions()
 
   return existing.length
@@ -321,11 +336,16 @@ async function start() {
   ensureDirectories()
   loadSessions()
 
-  const { state, saveCreds } =
-    await useMultiFileAuthState(AUTH_DIR)
+  const {
+    state,
+    saveCreds
+  } = await useMultiFileAuthState(
+    AUTH_DIR
+  )
 
-  const { version } =
-    await fetchLatestBaileysVersion()
+  const {
+    version
+  } = await fetchLatestBaileysVersion()
 
   const sock = makeWASocket({
     version,
@@ -335,11 +355,18 @@ async function start() {
 
   let pairingRequested = false
 
-  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on(
+    'creds.update',
+    saveCreds
+  )
 
   sock.ev.on(
     'connection.update',
-    async ({ connection, lastDisconnect, qr }) => {
+    async ({
+      connection,
+      lastDisconnect,
+      qr
+    }) => {
       if (
         qr &&
         !pairingRequested &&
@@ -350,9 +377,14 @@ async function start() {
 
         try {
           const code =
-            await sock.requestPairingCode(PHONE)
+            await sock.requestPairingCode(
+              PHONE
+            )
 
-          console.log('PAIRING CODE:', code)
+          console.log(
+            'PAIRING CODE:',
+            code
+          )
         } catch (error) {
           console.log(
             'PAIRING ERROR:',
@@ -376,7 +408,9 @@ async function start() {
           code
         )
 
-        if (code !== DisconnectReason.loggedOut) {
+        if (
+          code !== DisconnectReason.loggedOut
+        ) {
           await sleep(3000)
           start()
         } else {
@@ -400,12 +434,13 @@ async function start() {
             continue
           }
 
-          if (!isAllowedMessage(message, sock)) {
-            continue
-          }
-
           const chatId =
             message.key.remoteJid
+
+          // البوت يخدم غير فالخاص
+          if (chatId.endsWith('@g.us')) {
+            continue
+          }
 
           const image =
             message.message.imageMessage
@@ -413,10 +448,14 @@ async function start() {
           const text =
             getText(message).toLowerCase()
 
-          // إذا كانت صورة، خزّنها
+          // استقبال الصورة وتخزينها
           if (image) {
             const count =
-              await addImage(chatId, message)
+              await addImage(
+                chatId,
+                message,
+                sock
+              )
 
             await sock.sendMessage(
               chatId,
@@ -425,7 +464,9 @@ async function start() {
                   `✅ تسجلات الصورة رقم ${count}. ` +
                   `صيفط صور أخرى، ومنين تسالي كتب: pdf`
               },
-              { quoted: message }
+              {
+                quoted: message
+              }
             )
 
             continue
@@ -446,15 +487,18 @@ async function start() {
             await sock.sendMessage(
               chatId,
               {
-                text: '🗑️ تم مسح الصور المجمعة.'
+                text:
+                  '🗑️ تم مسح الصور المجمعة.'
               },
-              { quoted: message }
+              {
+                quoted: message
+              }
             )
 
             continue
           }
 
-          // إنشاء PDF
+          // إنشاء وإرسال PDF
           if (
             [
               'pdf',
@@ -475,7 +519,9 @@ async function start() {
                     'مازال ما صيفطتي حتى صورة. ' +
                     'صيفط الصور أولاً.'
                 },
-                { quoted: message }
+                {
+                  quoted: message
+                }
               )
 
               continue
@@ -485,14 +531,18 @@ async function start() {
               chatId,
               {
                 text:
-                  `⏳ كنوجد PDF من ${items.length} صورة...`
+                  `⏳ كنوجد PDF من ` +
+                  `${items.length} صورة...`
               },
-              { quoted: message }
+              {
+                quoted: message
+              }
             )
 
             const result =
               await createPdf(chatId)
 
+            // إرسال PDF مباشرة للمستخدم
             await sock.sendMessage(
               chatId,
               {
@@ -503,12 +553,23 @@ async function start() {
                 fileName:
                   `images-${Date.now()}.pdf`,
                 caption:
-                  `✅ واجد بجودة أصلية من ` +
+                  `✅ تفضل، الـPDF ديالك واجد ` +
+                  `بجودة أصلية من ` +
                   `${result.count} صورة.`
-              },
-              { quoted: message }
+              }
             )
 
+            // رسالة الشكر
+            await sock.sendMessage(
+              chatId,
+              {
+                text:
+                  'شكراً لاستعمال الخدمة. ' +
+                  'نتمنى يعجبك الـPDF.'
+              }
+            )
+
+            // مسح الصور من بعد الإرسال
             await clearSession(chatId)
 
             try {
@@ -530,7 +591,9 @@ async function start() {
                 text:
                   `وقع مشكل: ${error.message}`
               },
-              { quoted: message }
+              {
+                quoted: message
+              }
             )
           } catch {}
         }
@@ -540,4 +603,4 @@ async function start() {
 }
 
 start()
-         
+            
